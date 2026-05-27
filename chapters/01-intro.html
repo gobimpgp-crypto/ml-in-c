@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 1: Introduction to ML in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links">
+      <a href="../index.html">Home</a>
+      <a href="../index.html#curriculum">Chapters</a>
+    </div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 01</div>
+      <h1>Introduction to ML &amp; C Setup</h1>
+      <p>Understand what machine learning is, why C is a powerful language to learn it in, and set up your development environment.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~45 min</span>
+        <span class="meta-tag">🎯 Beginner</span>
+        <span class="meta-tag">📁 Chapter 1 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link active" data-chapter="01">
+        <span class="sidebar-num">01</span> Introduction
+      </a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02">
+        <span class="sidebar-num">02</span> Linear Algebra
+      </a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03">
+        <span class="sidebar-num">03</span> Statistics
+      </a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04">
+        <span class="sidebar-num">04</span> Linear Regression
+      </a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05">
+        <span class="sidebar-num">05</span> Gradient Descent
+      </a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06">
+        <span class="sidebar-num">06</span> Neural Networks
+      </a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07">
+        <span class="sidebar-num">07</span> Backpropagation
+      </a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08">
+        <span class="sidebar-num">08</span> Projects
+      </a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>What is Machine Learning?</h2>
+        <p>Machine learning is the science of making computers learn from data without being explicitly programmed for every case. Instead of writing rules by hand, we give an algorithm data and let it <em>discover</em> the rules itself.</p>
+        <p>Three main paradigms:</p>
+        <ul>
+          <li><strong>Supervised learning</strong> — learn from labeled examples (spam vs. not spam)</li>
+          <li><strong>Unsupervised learning</strong> — find structure in unlabeled data (clustering)</li>
+          <li><strong>Reinforcement learning</strong> — learn by trial and reward/penalty</li>
+        </ul>
+        <p>This course focuses on supervised learning — it's the foundation for most real-world ML systems.</p>
+
+        <h2>Why Learn ML in C?</h2>
+        <p>Most ML tutorials use Python. That's fine for getting results fast, but it hides <em>everything</em> interesting. When you implement backpropagation yourself in C, you will understand it for life. The benefits:</p>
+        <ul>
+          <li>You see <strong>exactly</strong> how gradients flow through a network</li>
+          <li>You develop an intuition for memory layout and numerical stability</li>
+          <li>Production ML engines (TensorFlow XLA, ggml, llama.cpp) are written in C/C++</li>
+          <li>No <code>import sklearn</code> crutch — every parameter is yours</li>
+        </ul>
+        <div class="callout">
+          <strong>Prerequisites</strong>
+          You need basic C knowledge: variables, loops, functions, pointers, and structs. If you're new to C, spend a day with the K&amp;R book first.
+        </div>
+
+        <h2>Setting Up Your Environment</h2>
+        <h3>Install GCC</h3>
+        <p>On Linux/macOS you likely already have GCC. On Windows, install MinGW or WSL.</p>
+        <pre><code class="language-bash"># Check GCC is installed
+gcc --version
+
+# Compile a C file
+gcc -o program program.c -lm
+
+# With optimizations
+gcc -O2 -o program program.c -lm</code></pre>
+        <p>The <code>-lm</code> flag links the math library — you'll need it for <code>expf()</code>, <code>sqrtf()</code>, etc.</p>
+
+        <h3>Your First ML-ish C Program</h3>
+        <p>Let's write the simplest possible ML: predicting a value with a linear function <code>y = w * x + b</code>.</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+
+// A linear model: y = weight * x + bias
+float predict(float x, float weight, float bias) {
+    return weight * x + bias;
+}
+
+int main(void) {
+    // Pretend we learned these parameters from data
+    float weight = 2.5f;
+    float bias   = 1.0f;
+
+    // Predict for several inputs
+    float inputs[] = {1.0f, 2.0f, 3.0f, 4.0f};
+    int n = 4;
+
+    printf("%-10s %-10s\n", "Input", "Prediction");
+    for (int i = 0; i &lt; n; i++) {
+        float pred = predict(inputs[i], weight, bias);
+        printf("%-10.1f %-10.2f\n", inputs[i], pred);
+    }
+    return 0;
+}</code></pre>
+        <p>Compile and run:</p>
+        <pre><code class="language-bash">gcc -o first_ml first_ml.c && ./first_ml</code></pre>
+        <p>Output:</p>
+        <pre><code class="language-bash">Input      Prediction
+1.0        3.50
+2.0        6.00
+3.0        8.50
+4.0        11.00</code></pre>
+
+        <h2>C Memory Model — A Quick Refresher</h2>
+        <p>ML in C lives or dies by your pointer skills. A brief refresher:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(void) {
+    int n = 5;
+
+    // Stack allocation — fast, auto-freed
+    float stack_arr[5] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+
+    // Heap allocation — manual management, any size
+    float *heap_arr = malloc(n * sizeof(float));
+    if (!heap_arr) { perror("malloc"); return 1; }
+
+    for (int i = 0; i &lt; n; i++)
+        heap_arr[i] = (float)(i + 1);
+
+    // Always free heap memory
+    free(heap_arr);
+    return 0;
+}</code></pre>
+        <div class="callout warning">
+          <strong>⚠ Memory Rule</strong>
+          Every <code>malloc()</code> must have a matching <code>free()</code>. Neural network weights are heap-allocated — forget to free them and you have a leak.
+        </div>
+
+        <h2>Floating Point in C</h2>
+        <p>ML uses floating point math constantly. Use <code>float</code> (32-bit) for most ML work — it's faster and uses half the memory of <code>double</code>.</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;math.h&gt;   // for expf, sqrtf, fabsf, etc.
+
+int main(void) {
+    float a = 0.1f + 0.2f;
+    printf("0.1 + 0.2 = %.17f\n", (double)a);
+    // Output: 0.30000001192092896
+    // Floating point is NOT exact!
+
+    // Common ML math functions
+    float x = 2.0f;
+    printf("exp(2)  = %f\n", expf(x));
+    printf("sqrt(2) = %f\n", sqrtf(x));
+    printf("log(2)  = %f\n", logf(x));
+    printf("|−3.5|  = %f\n", fabsf(-3.5f));
+    return 0;
+}</code></pre>
+        <div class="callout success">
+          <strong>✓ Key Takeaway</strong>
+          Floating point arithmetic is approximate. In ML this is fine — your gradients don't need 15 decimal places. But always use <code>float</code> suffix (<code>1.0f</code>, not <code>1.0</code>) to avoid implicit double promotion.
+        </div>
+
+        <h2>Structs for ML Data Structures</h2>
+        <p>You'll use <code>struct</code> to represent datasets, layers, and models throughout this course:</p>
+        <pre><code class="language-c">#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+// A simple dataset
+typedef struct {
+    float *X;      // input features, shape [n_samples × n_features]
+    float *y;      // labels, shape [n_samples]
+    int    n;      // number of samples
+    int    features;
+} Dataset;
+
+Dataset *dataset_create(int n, int features) {
+    Dataset *ds = malloc(sizeof(Dataset));
+    ds->X = malloc(n * features * sizeof(float));
+    ds->y = malloc(n * sizeof(float));
+    ds->n = n;
+    ds->features = features;
+    return ds;
+}
+
+void dataset_free(Dataset *ds) {
+    free(ds->X);
+    free(ds->y);
+    free(ds);
+}</code></pre>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>ML = learning patterns from data instead of hand-coding rules</li>
+          <li>C gives you full visibility into the math and memory of ML algorithms</li>
+          <li>Use <code>gcc -O2 -lm</code> to compile ML programs</li>
+          <li>Prefer <code>float</code> over <code>double</code> for ML; always free heap memory</li>
+          <li>Use <code>struct</code> and <code>typedef</code> to build clean ML data structures</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="../index.html" class="btn btn-ghost">← Home</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="01">Mark Complete</button>
+        <a href="02-linear-algebra.html" class="btn btn-primary">Next: Linear Algebra →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
