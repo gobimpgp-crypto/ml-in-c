@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Machine Learning in C — From Scratch</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="logo">⚙ ML in C</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="active">Home</a>
+      <a href="chapters/01-intro.html">Chapters</a>
+      <a href="#progress">Progress</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-content">
+      <div class="hero-badge">100% Free · No Fluff · Pure C</div>
+      <h1>Machine Learning<br /><span class="accent">From Scratch in C</span></h1>
+      <p class="hero-sub">
+        Master the foundations of ML by implementing every algorithm yourself —
+        no frameworks, no magic. Just C, math, and deep understanding.
+      </p>
+      <div class="hero-actions">
+        <a href="chapters/01-intro.html" class="btn btn-primary">Start Learning →</a>
+        <a href="https://github.com/learn-ml-c/ml-in-c" class="btn btn-ghost" target="_blank">View on GitHub</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><strong>8</strong><span>Chapters</span></div>
+        <div class="stat"><strong>50+</strong><span>C Examples</span></div>
+        <div class="stat"><strong>0</strong><span>Dependencies</span></div>
+      </div>
+    </div>
+    <div class="hero-code">
+      <div class="code-window">
+        <div class="code-window-bar">
+          <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+          <span class="code-filename">neural_net.c</span>
+        </div>
+        <pre><code class="language-c">// A 2-layer neural network in pure C
+float sigmoid(float x) {
+    return 1.0f / (1.0f + expf(-x));
+}
+
+void forward_pass(Network *net, float *input) {
+    for (int i = 0; i < net->hidden_size; i++) {
+        float sum = net->bias1[i];
+        for (int j = 0; j < net->input_size; j++)
+            sum += input[j] * net->w1[j][i];
+        net->hidden[i] = sigmoid(sum);
+    }
+    float out = net->bias2;
+    for (int i = 0; i < net->hidden_size; i++)
+        out += net->hidden[i] * net->w2[i];
+    net->output = sigmoid(out);
+}</code></pre>
+      </div>
+    </div>
+  </header>
+
+  <section class="why-c">
+    <div class="container">
+      <h2>Why Learn ML in C?</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-icon">🧠</div>
+          <h3>Deep Understanding</h3>
+          <p>No framework abstracts away the math. You implement every matrix multiply, every gradient update yourself.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Raw Performance</h3>
+          <p>C gives you direct memory control and SIMD-friendly code. Learn how production ML engines actually work.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔧</div>
+          <h3>Transferable Skills</h3>
+          <p>Once you've built backprop by hand in C, PyTorch and TensorFlow become trivially easy to understand.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📐</div>
+          <h3>Math Made Concrete</h3>
+          <p>Every formula gets translated to code you can run, debug, and modify — not just symbols on paper.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="curriculum" id="curriculum">
+    <div class="container">
+      <h2>Course Curriculum</h2>
+      <p class="section-sub">Eight progressive chapters — from C basics to a working neural network</p>
+      <div class="chapter-list">
+        <a href="chapters/01-intro.html" class="chapter-item">
+          <div class="chapter-num">01</div>
+          <div class="chapter-info">
+            <h3>Introduction to ML &amp; C Setup</h3>
+            <p>Why ML in C, toolchain setup, memory model, and your first ML program</p>
+            <div class="chapter-tags"><span>Beginner</span><span>Setup</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/02-linear-algebra.html" class="chapter-item">
+          <div class="chapter-num">02</div>
+          <div class="chapter-info">
+            <h3>Linear Algebra in C</h3>
+            <p>Vectors, matrices, dot products, and matrix multiplication from scratch</p>
+            <div class="chapter-tags"><span>Math</span><span>Arrays</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/03-statistics.html" class="chapter-item">
+          <div class="chapter-num">03</div>
+          <div class="chapter-info">
+            <h3>Statistics &amp; Probability</h3>
+            <p>Mean, variance, covariance, distributions — all implemented in C</p>
+            <div class="chapter-tags"><span>Stats</span><span>Math</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/04-linear-regression.html" class="chapter-item">
+          <div class="chapter-num">04</div>
+          <div class="chapter-info">
+            <h3>Linear Regression</h3>
+            <p>Cost function, normal equation, and least squares in C</p>
+            <div class="chapter-tags"><span>Supervised</span><span>Core</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/05-gradient-descent.html" class="chapter-item">
+          <div class="chapter-num">05</div>
+          <div class="chapter-info">
+            <h3>Gradient Descent</h3>
+            <p>Batch, SGD, mini-batch — convergence and learning rate in C</p>
+            <div class="chapter-tags"><span>Optimization</span><span>Core</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/06-neural-networks.html" class="chapter-item">
+          <div class="chapter-num">06</div>
+          <div class="chapter-info">
+            <h3>Neural Networks</h3>
+            <p>Perceptrons, layers, activation functions (ReLU, sigmoid, tanh)</p>
+            <div class="chapter-tags"><span>Deep Learning</span><span>Core</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/07-backpropagation.html" class="chapter-item">
+          <div class="chapter-num">07</div>
+          <div class="chapter-info">
+            <h3>Backpropagation</h3>
+            <p>Chain rule, weight updates, and training loops — all in C</p>
+            <div class="chapter-tags"><span>Deep Learning</span><span>Advanced</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+        <a href="chapters/08-projects.html" class="chapter-item">
+          <div class="chapter-num">08</div>
+          <div class="chapter-info">
+            <h3>Projects &amp; Next Steps</h3>
+            <p>XOR solver, simple classifier, MNIST skeleton — build real ML in C</p>
+            <div class="chapter-tags"><span>Projects</span><span>Advanced</span></div>
+          </div>
+          <div class="chapter-arrow">→</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="progress-section" id="progress">
+    <div class="container">
+      <h2>Your Progress</h2>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+      </div>
+      <p id="progressText" class="progress-text">0 of 8 chapters completed</p>
+      <button class="btn btn-ghost" onclick="clearProgress()">Reset Progress</button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Built with ❤ for systems programmers who want to understand ML deeply.</p>
+      <p>Open source — <a href="https://github.com/learn-ml-c/ml-in-c" target="_blank">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
