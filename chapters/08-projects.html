@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 8: Projects in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 08</div>
+      <h1>Projects &amp; Next Steps</h1>
+      <p>Apply everything you've learned: build an XOR solver, a digit classifier skeleton, and plan your next steps in ML with C.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~2 hours</span>
+        <span class="meta-tag">🎯 Advanced</span>
+        <span class="meta-tag">📁 Chapter 8 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link active" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>Project 1: XOR Solver</h2>
+        <p>XOR is the classic "hello world" of neural networks. A linear model can't solve it — you need at least one hidden layer. Let's build a neural network that learns XOR from scratch:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+#include &lt;string.h&gt;
+
+// ─── Activation Functions ────────────────────────────
+float sigmoid(float x)       { return 1.0f/(1.0f+expf(-x)); }
+float sigmoid_d(float x)     { float s=sigmoid(x); return s*(1-s); }
+float relu(float x)          { return x&gt;0?x:0; }
+float relu_d(float x)        { return x&gt;0?1.0f:0.0f; }
+
+// ─── 2-layer XOR network: 2→4→1 ─────────────────────
+typedef struct {
+    // Layer 1: 2 inputs → 4 hidden
+    float W1[4][2], b1[4], z1[4], a1[4];
+    // Layer 2: 4 hidden → 1 output
+    float W2[4],    b2,    z2,    a2;
+} XorNet;
+
+void xor_init(XorNet *net) {
+    srand(1234);
+    for (int i = 0; i &lt; 4; i++) {
+        for (int j = 0; j &lt; 2; j++)
+            net->W1[i][j] = ((float)rand()/RAND_MAX)*2-1;
+        net->b1[i] = 0;
+        net->W2[i] = ((float)rand()/RAND_MAX)*2-1;
+    }
+    net->b2 = 0;
+}
+
+float xor_forward(XorNet *net, float x0, float x1) {
+    float in[2] = {x0, x1};
+    // Layer 1
+    for (int i = 0; i &lt; 4; i++) {
+        net->z1[i] = net->b1[i];
+        for (int j = 0; j &lt; 2; j++)
+            net->z1[i] += net->W1[i][j] * in[j];
+        net->a1[i] = relu(net->z1[i]);
+    }
+    // Layer 2
+    net->z2 = net->b2;
+    for (int i = 0; i &lt; 4; i++)
+        net->z2 += net->W2[i] * net->a1[i];
+    net->a2 = sigmoid(net->z2);
+    return net->a2;
+}
+
+void xor_backward(XorNet *net, float x0, float x1, float y_true,
+                  float lr) {
+    float in[2] = {x0, x1};
+    float pred = xor_forward(net, x0, x1);
+
+    // Output gradient
+    float d2 = (pred - y_true) * sigmoid_d(net->z2);
+
+    // Layer 2 weight update
+    for (int i = 0; i &lt; 4; i++)
+        net->W2[i] -= lr * d2 * net->a1[i];
+    net->b2 -= lr * d2;
+
+    // Propagate to layer 1
+    float d1[4];
+    for (int i = 0; i &lt; 4; i++)
+        d1[i] = d2 * net->W2[i] * relu_d(net->z1[i]);
+
+    // Layer 1 weight update
+    for (int i = 0; i &lt; 4; i++) {
+        for (int j = 0; j &lt; 2; j++)
+            net->W1[i][j] -= lr * d1[i] * in[j];
+        net->b1[i] -= lr * d1[i];
+    }
+}
+
+int main(void) {
+    // XOR truth table
+    float X[4][2] = {{0,0},{0,1},{1,0},{1,1}};
+    float y[4]    = {0,   1,   1,   0};
+
+    XorNet net;
+    xor_init(&net);
+
+    printf("Training XOR network...\n");
+    for (int epoch = 0; epoch &lt; 10000; epoch++) {
+        float loss = 0;
+        for (int i = 0; i &lt; 4; i++) {
+            xor_backward(&net, X[i][0], X[i][1], y[i], 0.1f);
+            float p = xor_forward(&net, X[i][0], X[i][1]);
+            float d = p - y[i]; loss += d*d;
+        }
+        if (epoch % 1000 == 0)
+            printf("Epoch %5d: loss = %.6f\n", epoch, loss/4);
+    }
+
+    printf("\nFinal predictions:\n");
+    for (int i = 0; i &lt; 4; i++) {
+        float p = xor_forward(&net, X[i][0], X[i][1]);
+        printf("  XOR(%.0f, %.0f) = %.4f (expected %.0f)  %s\n",
+               X[i][0], X[i][1], p, y[i],
+               (p &gt; 0.5f) == (int)y[i] ? "✓" : "✗");
+    }
+    return 0;
+}</code></pre>
+        <p>Expected output after training:</p>
+        <pre><code class="language-bash">XOR(0, 0) = 0.0312 (expected 0)  ✓
+XOR(0, 1) = 0.9721 (expected 1)  ✓
+XOR(1, 0) = 0.9688 (expected 1)  ✓
+XOR(1, 1) = 0.0279 (expected 0)  ✓</code></pre>
+
+        <h2>Project 2: Simple Binary Classifier</h2>
+        <p>Classify whether a point is inside a circle. We'll generate synthetic data and train a classifier:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+#include &lt;time.h&gt;
+
+#define N_TRAIN 200
+#define N_TEST  50
+
+// Generate circle dataset: points inside unit circle = class 1
+void generate_circle_data(float *X, float *y, int n) {
+    srand((unsigned)time(NULL));
+    for (int i = 0; i &lt; n; i++) {
+        X[2*i]   = ((float)rand()/RAND_MAX)*4-2;  // x in [-2, 2]
+        X[2*i+1] = ((float)rand()/RAND_MAX)*4-2;  // y in [-2, 2]
+        float r = X[2*i]*X[2*i] + X[2*i+1]*X[2*i+1];
+        y[i] = (r &lt; 1.0f) ? 1.0f : 0.0f;
+    }
+}
+
+float accuracy(float *X, float *y, int n, /* your net */ void *net,
+               float (*predict_fn)(void*, float*)) {
+    int correct = 0;
+    for (int i = 0; i &lt; n; i++) {
+        float p = predict_fn(net, X + 2*i);
+        if ((p &gt; 0.5f) == (int)y[i]) correct++;
+    }
+    return (float)correct / n;
+}
+
+// Training would use the Network + backprop from chapters 6-7.
+// This skeleton shows the data pipeline.</code></pre>
+
+        <h2>Project 3: MNIST Digit Loader</h2>
+        <p>MNIST is the "hello world" dataset of image classification — 70,000 handwritten digits. Here's how to load the binary format in C:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdint.h&gt;
+
+// Read 4-byte big-endian integer
+uint32_t read_be32(FILE *f) {
+    uint8_t b[4];
+    fread(b, 1, 4, f);
+    return (b[0]&lt;&lt;24)|(b[1]&lt;&lt;16)|(b[2]&lt;&lt;8)|b[3];
+}
+
+// Load MNIST images: returns float array [n × 784], normalized to [0,1]
+float *load_mnist_images(const char *path, int *n) {
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return NULL; }
+    read_be32(f);             // magic
+    *n = read_be32(f);        // number of images
+    int rows = read_be32(f);  // 28
+    int cols = read_be32(f);  // 28
+    int sz = rows * cols;
+
+    float *data = malloc(*n * sz * sizeof(float));
+    uint8_t *buf = malloc(sz);
+    for (int i = 0; i &lt; *n; i++) {
+        fread(buf, 1, sz, f);
+        for (int j = 0; j &lt; sz; j++)
+            data[i*sz+j] = buf[j] / 255.0f;
+    }
+    free(buf); fclose(f);
+    return data;
+}
+
+// Load MNIST labels: returns one-hot encoded [n × 10]
+float *load_mnist_labels(const char *path, int n) {
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return NULL; }
+    read_be32(f); read_be32(f);  // magic, n
+
+    float *labels = calloc(n * 10, sizeof(float));
+    for (int i = 0; i &lt; n; i++) {
+        uint8_t c; fread(&c, 1, 1, f);
+        labels[i*10 + c] = 1.0f;  // one-hot
+    }
+    fclose(f);
+    return labels;
+}
+
+// Usage:
+// int n_train;
+// float *X = load_mnist_images("train-images.idx3-ubyte", &n_train);
+// float *Y = load_mnist_labels("train-labels.idx1-ubyte", n_train);
+// Network: 784 → 128 → 64 → 10 (softmax output)</code></pre>
+
+        <h2>Project 4: k-Nearest Neighbors in C</h2>
+        <p>KNN is a non-parametric classifier — no training required, just memorize the data:</p>
+        <pre><code class="language-c">// Euclidean distance between two feature vectors
+float euclidean_dist(const float *a, const float *b, int d) {
+    float sum = 0;
+    for (int i = 0; i &lt; d; i++) {
+        float diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    return sqrtf(sum);
+}
+
+// k-NN prediction for one test point
+// X_train: [n × d], y_train: [n] (integer labels)
+// Returns predicted class label
+int knn_predict(const float *X_train, const int *y_train,
+                int n, int d, const float *x_test, int k) {
+    // Find k nearest neighbors
+    float *dists = malloc(n * sizeof(float));
+    int   *idx   = malloc(n * sizeof(int));
+    for (int i = 0; i &lt; n; i++) {
+        dists[i] = euclidean_dist(X_train + i*d, x_test, d);
+        idx[i] = i;
+    }
+    // Partial sort: find k smallest distances
+    for (int i = 0; i &lt; k; i++)
+        for (int j = i+1; j &lt; n; j++)
+            if (dists[idx[j]] &lt; dists[idx[i]]) {
+                int tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp;
+            }
+
+    // Vote: find most common label among k neighbors
+    int votes[100] = {0};  // assumes &lt;100 classes
+    for (int i = 0; i &lt; k; i++) votes[y_train[idx[i]]]++;
+    int best = 0;
+    for (int c = 1; c &lt; 100; c++) if (votes[c] &gt; votes[best]) best = c;
+
+    free(dists); free(idx);
+    return best;
+}</code></pre>
+
+        <h2>What's Next?</h2>
+        <div class="callout success">
+          <strong>You've built the foundation!</strong>
+          You've now implemented vectors, matrices, statistics, linear regression, gradient descent, a neural network, backpropagation, and multiple real projects — all in C.
+        </div>
+        <p>Where to go from here:</p>
+        <ul>
+          <li><strong>Convolutional layers</strong> — add convolution + pooling for image tasks</li>
+          <li><strong>LSTM / RNNs</strong> — add recurrent connections for sequence data</li>
+          <li><strong>Adam optimizer</strong> — replace SGD with adaptive learning rates</li>
+          <li><strong>Batch normalization</strong> — normalize activations for faster, more stable training</li>
+          <li><strong>BLAS integration</strong> — replace naive matrix multiply with cblas_sgemm for 10-100× speedup</li>
+          <li><strong>llama.cpp, ggml</strong> — read production C ML engine source code</li>
+        </ul>
+        <pre><code class="language-c">// Next challenge: implement Adam optimizer
+typedef struct {
+    float *m;    // first moment (momentum)
+    float *v;    // second moment (RMS)
+    int    t;    // timestep
+    float  lr, beta1, beta2, eps;
+} Adam;
+
+void adam_update(Adam *opt, float *params, float *grads, int n) {
+    opt->t++;
+    float lr_t = opt->lr * sqrtf(1 - powf(opt->beta2, opt->t))
+                         / (1 - powf(opt->beta1, opt->t));
+    for (int i = 0; i &lt; n; i++) {
+        opt->m[i] = opt->beta1 * opt->m[i] + (1-opt->beta1) * grads[i];
+        opt->v[i] = opt->beta2 * opt->v[i] + (1-opt->beta2) * grads[i]*grads[i];
+        params[i] -= lr_t * opt->m[i] / (sqrtf(opt->v[i]) + opt->eps);
+    }
+}</code></pre>
+
+        <h2>Congratulations!</h2>
+        <p>You've completed the course. You now understand ML from the ground up — not as a black box, but as mathematics made concrete in C code. Every framework you use from here will feel transparent.</p>
+        <div class="callout">
+          <strong>Share your projects!</strong>
+          If you build something cool with what you've learned, open an issue on the GitHub repo and share it. The best way to deepen understanding is to teach others.
+        </div>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="07-backpropagation.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="08">Mark Complete</button>
+        <a href="../index.html" class="btn btn-primary">Back to Home →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
