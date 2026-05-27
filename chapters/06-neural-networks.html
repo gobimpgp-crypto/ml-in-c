@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 6: Neural Networks in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 06</div>
+      <h1>Neural Networks</h1>
+      <p>Build a multi-layer neural network in C — perceptrons, layers, forward pass, and every activation function from scratch.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~90 min</span>
+        <span class="meta-tag">🎯 Intermediate–Advanced</span>
+        <span class="meta-tag">📁 Chapter 6 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link active" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>From Linear to Non-Linear</h2>
+        <p>Linear regression can only draw a straight line. Real-world data (images, audio, language) has non-linear patterns. Neural networks stack <strong>linear transformations + non-linear activations</strong> to approximate any function.</p>
+        <p>A single neuron computes:</p>
+        <div class="math-block">output = activation(w · x + b)</div>
+        <p>A layer is just many neurons in parallel. Stack layers → deep network.</p>
+
+        <h2>Activation Functions</h2>
+        <p>Activation functions introduce non-linearity. Without them, stacking layers is equivalent to just one linear layer.</p>
+        <pre><code class="language-c">#include &lt;math.h&gt;
+
+// Sigmoid: maps any value to (0, 1) — good for output probabilities
+float sigmoid(float x) {
+    return 1.0f / (1.0f + expf(-x));
+}
+float sigmoid_deriv(float x) {
+    float s = sigmoid(x);
+    return s * (1.0f - s);
+}
+
+// ReLU: max(0, x) — most common in hidden layers
+float relu(float x) {
+    return x &gt; 0.0f ? x : 0.0f;
+}
+float relu_deriv(float x) {
+    return x &gt; 0.0f ? 1.0f : 0.0f;
+}
+
+// Leaky ReLU: fixes "dying ReLU" problem
+float leaky_relu(float x, float alpha) {
+    return x &gt; 0.0f ? x : alpha * x;
+}
+float leaky_relu_deriv(float x, float alpha) {
+    return x &gt; 0.0f ? 1.0f : alpha;
+}
+
+// Tanh: maps to (-1, 1) — centered, good for recurrent layers
+float tanh_act(float x) {
+    return tanhf(x);
+}
+float tanh_deriv(float x) {
+    float t = tanhf(x);
+    return 1.0f - t * t;
+}
+
+// Softmax: for multi-class output (converts logits to probabilities)
+void softmax(float *x, int n) {
+    float max_val = x[0];
+    for (int i = 1; i &lt; n; i++) if (x[i] &gt; max_val) max_val = x[i];
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++) { x[i] = expf(x[i] - max_val); sum += x[i]; }
+    for (int i = 0; i &lt; n; i++) x[i] /= sum;
+}</code></pre>
+
+        <h2>Layer Structure</h2>
+        <pre><code class="language-c">#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+typedef enum { RELU, SIGMOID, TANH, LINEAR } ActivationType;
+
+typedef struct {
+    float *W;        // weights [out_size × in_size]
+    float *b;        // biases  [out_size]
+    float *z;        // pre-activation  [out_size]
+    float *a;        // post-activation [out_size]
+    float *dW;       // weight gradients
+    float *db;       // bias gradients
+    int    in_size;
+    int    out_size;
+    ActivationType act;
+} Layer;
+
+Layer *layer_create(int in_size, int out_size, ActivationType act) {
+    Layer *l = malloc(sizeof(Layer));
+    l->in_size  = in_size;
+    l->out_size = out_size;
+    l->act      = act;
+
+    l->W  = malloc(out_size * in_size * sizeof(float));
+    l->b  = calloc(out_size, sizeof(float));
+    l->z  = malloc(out_size * sizeof(float));
+    l->a  = malloc(out_size * sizeof(float));
+    l->dW = calloc(out_size * in_size, sizeof(float));
+    l->db = calloc(out_size, sizeof(float));
+
+    // He initialization for ReLU
+    float std = sqrtf(2.0f / in_size);
+    srand(42);
+    for (int i = 0; i &lt; out_size * in_size; i++)
+        l->W[i] = ((float)rand()/RAND_MAX * 2 - 1) * std;
+
+    return l;
+}
+
+void layer_free(Layer *l) {
+    free(l->W); free(l->b); free(l->z); free(l->a);
+    free(l->dW); free(l->db); free(l);
+}
+
+// Apply activation in-place on l->z → l->a
+void apply_activation(Layer *l) {
+    for (int i = 0; i &lt; l->out_size; i++) {
+        switch (l->act) {
+            case RELU:    l->a[i] = relu(l->z[i]);    break;
+            case SIGMOID: l->a[i] = sigmoid(l->z[i]); break;
+            case TANH:    l->a[i] = tanh_act(l->z[i]);break;
+            case LINEAR:  l->a[i] = l->z[i];          break;
+        }
+    }
+}</code></pre>
+
+        <h2>Forward Pass</h2>
+        <p>For each layer, compute <code>z = W·a_prev + b</code>, then <code>a = activation(z)</code>:</p>
+        <pre><code class="language-c">// Forward pass through one layer
+// input: [in_size], output written to l->a
+void layer_forward(Layer *l, const float *input) {
+    for (int i = 0; i &lt; l->out_size; i++) {
+        float sum = l->b[i];
+        for (int j = 0; j &lt; l->in_size; j++)
+            sum += l->W[i * l->in_size + j] * input[j];
+        l->z[i] = sum;
+    }
+    apply_activation(l);
+}</code></pre>
+
+        <h2>Full Neural Network</h2>
+        <pre><code class="language-c">typedef struct {
+    Layer **layers;
+    int     n_layers;
+} Network;
+
+Network *net_create(int *sizes, ActivationType *acts, int n_layers) {
+    Network *net = malloc(sizeof(Network));
+    net->n_layers = n_layers;
+    net->layers = malloc(n_layers * sizeof(Layer *));
+    for (int i = 0; i &lt; n_layers; i++)
+        net->layers[i] = layer_create(sizes[i], sizes[i+1], acts[i]);
+    return net;
+}
+
+void net_free(Network *net) {
+    for (int i = 0; i &lt; net->n_layers; i++) layer_free(net->layers[i]);
+    free(net->layers); free(net);
+}
+
+// Forward pass through the entire network
+// input: [input_size], returns pointer to output layer activations
+float *net_forward(Network *net, const float *input) {
+    const float *prev = input;
+    for (int i = 0; i &lt; net->n_layers; i++) {
+        layer_forward(net->layers[i], prev);
+        prev = net->layers[i]->a;
+    }
+    return net->layers[net->n_layers - 1]->a;
+}
+
+// Example: 2-layer network (2 inputs, 4 hidden, 1 output)
+int main(void) {
+    int sizes[]          = {2, 4, 1};
+    ActivationType acts[] = {RELU, SIGMOID};
+    Network *net = net_create(sizes, acts, 2);
+
+    float input[] = {0.5f, 0.8f};
+    float *output = net_forward(net, input);
+    printf("Output: %.4f\n", output[0]);
+
+    net_free(net);
+    return 0;
+}</code></pre>
+
+        <div class="callout success">
+          <strong>✓ What just happened?</strong>
+          We fed [0.5, 0.8] into the network. It computed activations through a hidden ReLU layer and a sigmoid output layer — a full forward pass, in ~100 lines of C.
+        </div>
+
+        <h2>Universal Approximation Theorem</h2>
+        <p>A neural network with even a <em>single</em> hidden layer and enough neurons can approximate any continuous function. More layers = more efficient representation of complex functions.</p>
+
+        <h2>Choosing Architecture</h2>
+        <ul>
+          <li><strong>Input size</strong> = number of features</li>
+          <li><strong>Output size</strong> = 1 for regression, number of classes for classification</li>
+          <li><strong>Hidden layers</strong>: 1–3 layers of 32–256 units works for most tasks</li>
+          <li><strong>Output activation</strong>: linear for regression, sigmoid for binary classification, softmax for multi-class</li>
+        </ul>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>A neuron = linear combination + activation function</li>
+          <li>ReLU is the go-to for hidden layers; sigmoid/softmax for outputs</li>
+          <li>Forward pass: flow input through each layer's <code>z = Wx + b</code>, then activation</li>
+          <li>Use He init for ReLU layers (std = √(2/fan_in))</li>
+          <li>The <code>Layer</code> struct stores weights, biases, and pre-allocated activation buffers</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="05-gradient-descent.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="06">Mark Complete</button>
+        <a href="07-backpropagation.html" class="btn btn-primary">Next: Backpropagation →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
