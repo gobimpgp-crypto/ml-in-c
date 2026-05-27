@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 3: Statistics in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 03</div>
+      <h1>Statistics &amp; Probability in C</h1>
+      <p>Implement mean, variance, standard deviation, covariance, and basic distributions — the statistical foundation of every ML algorithm.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~50 min</span>
+        <span class="meta-tag">🎯 Beginner–Intermediate</span>
+        <span class="meta-tag">📁 Chapter 3 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link active" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>Why Statistics?</h2>
+        <p>Statistics shows up everywhere in ML:</p>
+        <ul>
+          <li>Evaluating model performance (loss functions, accuracy)</li>
+          <li>Understanding your data (distributions, outliers)</li>
+          <li>Regularization relies on Gaussian priors</li>
+          <li>Batch normalization uses running mean and variance</li>
+        </ul>
+
+        <h2>Descriptive Statistics</h2>
+        <h3>Mean</h3>
+        <div class="math-block">μ = (1/n) × Σᵢ xᵢ</div>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;math.h&gt;
+
+float mean(const float *x, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++)
+        sum += x[i];
+    return sum / n;
+}</code></pre>
+
+        <h3>Variance and Standard Deviation</h3>
+        <p>Variance measures spread. We use the <em>sample</em> variance (dividing by n−1, Bessel's correction):</p>
+        <div class="math-block">σ² = (1/(n-1)) × Σᵢ (xᵢ - μ)²</div>
+        <pre><code class="language-c">// Sample variance (Bessel's correction: divide by n-1)
+float variance(const float *x, int n) {
+    float mu = mean(x, n);
+    float sum_sq = 0.0f;
+    for (int i = 0; i &lt; n; i++) {
+        float diff = x[i] - mu;
+        sum_sq += diff * diff;
+    }
+    return sum_sq / (n - 1);
+}
+
+float std_dev(const float *x, int n) {
+    return sqrtf(variance(x, n));
+}
+
+int main(void) {
+    float data[] = {2.0f, 4.0f, 4.0f, 4.0f, 5.0f, 5.0f, 7.0f, 9.0f};
+    int n = 8;
+
+    printf("Mean:     %.4f\n", mean(data, n));     // 5.0000
+    printf("Variance: %.4f\n", variance(data, n)); // 4.5714
+    printf("Std Dev:  %.4f\n", std_dev(data, n));  // 2.1381
+    return 0;
+}</code></pre>
+
+        <h3>Min, Max, Range</h3>
+        <pre><code class="language-c">float arr_min(const float *x, int n) {
+    float m = x[0];
+    for (int i = 1; i &lt; n; i++) if (x[i] &lt; m) m = x[i];
+    return m;
+}
+
+float arr_max(const float *x, int n) {
+    float m = x[0];
+    for (int i = 1; i &lt; n; i++) if (x[i] &gt; m) m = x[i];
+    return m;
+}</code></pre>
+
+        <h2>Data Normalization</h2>
+        <p>Before feeding data to ML models, normalize it. Two common methods:</p>
+        <h3>Min-Max Normalization (scales to [0, 1])</h3>
+        <div class="math-block">x' = (x - min) / (max - min)</div>
+        <pre><code class="language-c">void normalize_minmax(float *x, int n) {
+    float mn = arr_min(x, n);
+    float mx = arr_max(x, n);
+    float range = mx - mn;
+    for (int i = 0; i &lt; n; i++)
+        x[i] = (x[i] - mn) / range;
+}</code></pre>
+
+        <h3>Z-Score Standardization (zero mean, unit variance)</h3>
+        <div class="math-block">x' = (x - μ) / σ</div>
+        <pre><code class="language-c">void standardize(float *x, int n) {
+    float mu  = mean(x, n);
+    float sig = std_dev(x, n);
+    for (int i = 0; i &lt; n; i++)
+        x[i] = (x[i] - mu) / sig;
+}
+
+// After standardize: mean ≈ 0, std_dev ≈ 1</code></pre>
+        <div class="callout">
+          <strong>When to use which?</strong>
+          Use z-score (standardize) for gradient-based algorithms like linear regression and neural networks — it keeps gradients well-behaved. Use min-max for algorithms sensitive to feature ranges (e.g., k-NN).
+        </div>
+
+        <h2>Covariance and Correlation</h2>
+        <p>Covariance measures how two variables move together:</p>
+        <div class="math-block">Cov(X,Y) = (1/(n-1)) × Σᵢ (xᵢ - μₓ)(yᵢ - μᵧ)</div>
+        <pre><code class="language-c">float covariance(const float *x, const float *y, int n) {
+    float mu_x = mean(x, n);
+    float mu_y = mean(y, n);
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++)
+        sum += (x[i] - mu_x) * (y[i] - mu_y);
+    return sum / (n - 1);
+}
+
+// Pearson correlation: normalized covariance [-1, 1]
+float correlation(const float *x, const float *y, int n) {
+    return covariance(x, y, n) / (std_dev(x, n) * std_dev(y, n));
+}</code></pre>
+
+        <h2>Loss Functions</h2>
+        <p>Loss functions are statistical measures of how wrong our model is. We'll use these in every subsequent chapter.</p>
+        <h3>Mean Squared Error (MSE)</h3>
+        <div class="math-block">MSE = (1/n) × Σᵢ (yᵢ - ŷᵢ)²</div>
+        <pre><code class="language-c">// y_true: ground truth labels
+// y_pred: model predictions
+float mse(const float *y_true, const float *y_pred, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++) {
+        float diff = y_true[i] - y_pred[i];
+        sum += diff * diff;
+    }
+    return sum / n;
+}</code></pre>
+
+        <h3>Mean Absolute Error (MAE)</h3>
+        <div class="math-block">MAE = (1/n) × Σᵢ |yᵢ - ŷᵢ|</div>
+        <pre><code class="language-c">float mae(const float *y_true, const float *y_pred, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++)
+        sum += fabsf(y_true[i] - y_pred[i]);
+    return sum / n;
+}</code></pre>
+
+        <h3>Binary Cross-Entropy</h3>
+        <p>Used for binary classification (output is probability between 0 and 1):</p>
+        <div class="math-block">BCE = -(1/n) × Σᵢ [yᵢ log(ŷᵢ) + (1-yᵢ) log(1-ŷᵢ)]</div>
+        <pre><code class="language-c">#define EPSILON 1e-7f  // avoid log(0)
+
+float binary_cross_entropy(const float *y_true, const float *y_pred, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i &lt; n; i++) {
+        float p = y_pred[i];
+        // Clip to avoid log(0)
+        if (p &lt; EPSILON)  p = EPSILON;
+        if (p &gt; 1.0f - EPSILON) p = 1.0f - EPSILON;
+        sum += y_true[i] * logf(p) + (1.0f - y_true[i]) * logf(1.0f - p);
+    }
+    return -sum / n;
+}</code></pre>
+
+        <h2>Random Number Generation</h2>
+        <p>ML needs random numbers for weight initialization. C's <code>rand()</code> is poor quality — let's use a better alternative:</p>
+        <pre><code class="language-c">#include &lt;stdlib.h&gt;
+#include &lt;time.h&gt;
+
+// Box-Muller transform: uniform → Gaussian N(0,1)
+float rand_gaussian(void) {
+    float u1 = ((float)rand() + 1.0f) / ((float)RAND_MAX + 2.0f);
+    float u2 = ((float)rand() + 1.0f) / ((float)RAND_MAX + 2.0f);
+    return sqrtf(-2.0f * logf(u1)) * cosf(2.0f * 3.14159265f * u2);
+}
+
+// Initialize an array with N(0, std) random values
+void rand_init(float *arr, int n, float std) {
+    srand((unsigned)time(NULL));
+    for (int i = 0; i &lt; n; i++)
+        arr[i] = rand_gaussian() * std;
+}
+
+// Example: He initialization for ReLU layers
+// std = sqrt(2.0 / fan_in)
+void he_init(float *weights, int fan_in, int n) {
+    float std = sqrtf(2.0f / fan_in);
+    rand_init(weights, n, std);
+}</code></pre>
+        <div class="callout success">
+          <strong>✓ Why He Initialization?</strong>
+          Random weights with the right scale prevent vanishing/exploding gradients at the start of training. He init (std = √(2/fan_in)) is optimal for ReLU activations.
+        </div>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>Mean, variance, and std dev describe the shape of your data</li>
+          <li>Normalize with z-score before feeding data to gradient-based ML</li>
+          <li>Covariance and correlation reveal relationships between features</li>
+          <li>MSE for regression, Binary Cross-Entropy for classification</li>
+          <li>Use Box-Muller for proper Gaussian random initialization</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="02-linear-algebra.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="03">Mark Complete</button>
+        <a href="04-linear-regression.html" class="btn btn-primary">Next: Linear Regression →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
