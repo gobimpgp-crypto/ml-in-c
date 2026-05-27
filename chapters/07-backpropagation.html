@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 7: Backpropagation in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 07</div>
+      <h1>Backpropagation</h1>
+      <p>Implement the chain rule, compute gradients layer by layer, and write a complete training loop — all in C.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~90 min</span>
+        <span class="meta-tag">🎯 Advanced</span>
+        <span class="meta-tag">📁 Chapter 7 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link active" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>The Core Insight</h2>
+        <p>Backpropagation = the chain rule of calculus, applied systematically to every parameter in a neural network.</p>
+        <p>The chain rule says: if <code>z = f(g(x))</code>, then <code>dz/dx = f'(g(x)) × g'(x)</code>.</p>
+        <p>In a network, the loss depends on the weights through many layers of composition. Backprop flows the gradient of the loss backward through each layer.</p>
+
+        <h2>Gradient Derivations</h2>
+        <p>For MSE loss <code>J = (1/2)(ŷ - y)²</code> with a sigmoid output:</p>
+        <div class="math-block">∂J/∂ŷ = ŷ - y                      (loss gradient)
+∂J/∂z_L = (ŷ - y) × σ'(z_L)      (output pre-activation)
+∂J/∂W_L = δ_L × aᵀ_{L-1}         (output weights)
+∂J/∂b_L = δ_L                      (output biases)
+δ_{L-1} = Wᵀ_L × δ_L ⊙ f'(z_{L-1}) (propagate backward)</div>
+
+        <h2>Backward Pass — One Layer</h2>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+#include &lt;string.h&gt;
+
+// Activation derivatives
+float act_deriv(float z, ActivationType act) {
+    switch (act) {
+        case RELU:    return z &gt; 0.0f ? 1.0f : 0.0f;
+        case SIGMOID: { float s = 1.0f/(1.0f+expf(-z)); return s*(1.0f-s); }
+        case TANH:    { float t = tanhf(z); return 1.0f - t*t; }
+        case LINEAR:  return 1.0f;
+    }
+    return 0;
+}
+
+// Backward pass through one layer
+// delta_in: incoming gradient [out_size]
+// prev_a:   activation from previous layer [in_size]
+// delta_out: gradient to pass to previous layer [in_size]
+void layer_backward(Layer *l, const float *delta_in,
+                    const float *prev_a, float *delta_out) {
+    // Compute delta at z: δ = delta_in ⊙ σ'(z)
+    float *delta_z = malloc(l->out_size * sizeof(float));
+    for (int i = 0; i &lt; l->out_size; i++)
+        delta_z[i] = delta_in[i] * act_deriv(l->z[i], l->act);
+
+    // Gradient w.r.t. weights: dW += delta_z × prev_aᵀ
+    for (int i = 0; i &lt; l->out_size; i++)
+        for (int j = 0; j &lt; l->in_size; j++)
+            l->dW[i * l->in_size + j] += delta_z[i] * prev_a[j];
+
+    // Gradient w.r.t. biases: db += delta_z
+    for (int i = 0; i &lt; l->out_size; i++)
+        l->db[i] += delta_z[i];
+
+    // Gradient to pass backward: delta_out = Wᵀ × delta_z
+    if (delta_out) {
+        memset(delta_out, 0, l->in_size * sizeof(float));
+        for (int j = 0; j &lt; l->in_size; j++)
+            for (int i = 0; i &lt; l->out_size; i++)
+                delta_out[j] += l->W[i * l->in_size + j] * delta_z[i];
+    }
+
+    free(delta_z);
+}</code></pre>
+
+        <h2>Full Network Backpropagation</h2>
+        <pre><code class="language-c">// Full backprop: compute gradients for all layers
+// input: original network input [input_size]
+// y_true: label
+void net_backward(Network *net, const float *input,
+                  float y_true) {
+    int L = net->n_layers;
+    float *output = net->layers[L-1]->a;
+
+    // Output layer: ∂J/∂a = ŷ - y (for MSE + linear output)
+    float *delta = malloc(net->layers[L-1]->out_size * sizeof(float));
+    delta[0] = output[0] - y_true;
+
+    // Backprop through each layer (last to first)
+    for (int i = L-1; i &gt;= 0; i--) {
+        const float *prev_a = (i == 0) ? input : net->layers[i-1]->a;
+        float *delta_next = NULL;
+        if (i &gt; 0)
+            delta_next = malloc(net->layers[i]->in_size * sizeof(float));
+
+        layer_backward(net->layers[i], delta, prev_a, delta_next);
+
+        free(delta);
+        delta = delta_next;
+    }
+    free(delta);
+}
+
+// Apply accumulated gradients (from one mini-batch)
+void net_update(Network *net, float lr, int batch_size) {
+    for (int i = 0; i &lt; net->n_layers; i++) {
+        Layer *l = net->layers[i];
+        int wsize = l->out_size * l->in_size;
+        for (int k = 0; k &lt; wsize; k++) {
+            l->W[k] -= lr * l->dW[k] / batch_size;
+            l->dW[k] = 0.0f;  // zero gradient
+        }
+        for (int k = 0; k &lt; l->out_size; k++) {
+            l->b[k] -= lr * l->db[k] / batch_size;
+            l->db[k] = 0.0f;
+        }
+    }
+}</code></pre>
+
+        <h2>Complete Training Loop</h2>
+        <pre><code class="language-c">// MSE for a regression network
+float net_mse(Network *net, const float *X, const float *y, int n, int in) {
+    float s = 0;
+    for (int i = 0; i &lt; n; i++) {
+        float pred = net_forward(net, X + i*in)[0];
+        float d = pred - y[i];
+        s += d*d;
+    }
+    return s / n;
+}
+
+void train_network(Network *net, const float *X, const float *y,
+                   int n, int in_size, float lr, int epochs) {
+    printf("Epoch     MSE\n");
+    for (int e = 0; e &lt; epochs; e++) {
+        // Full batch
+        for (int i = 0; i &lt; n; i++) {
+            net_forward(net, X + i * in_size);
+            net_backward(net, X + i * in_size, y[i]);
+        }
+        net_update(net, lr, n);
+
+        if (e % 100 == 0 || e == epochs-1) {
+            float loss = net_mse(net, X, y, n, in_size);
+            printf("%5d  %.6f\n", e, loss);
+        }
+    }
+}
+
+int main(void) {
+    // Learn y = sin(x) with a small network
+    int n = 20, in = 1;
+    float X[20], y[20];
+    for (int i = 0; i &lt; n; i++) {
+        X[i] = -3.14159f + i * (6.28318f / (n-1));
+        y[i] = sinf(X[i]);
+    }
+
+    // Network: 1 → 16 → 16 → 1
+    int sizes[] = {1, 16, 16, 1};
+    ActivationType acts[] = {TANH, TANH, LINEAR};
+    Network *net = net_create(sizes, acts, 3);
+
+    train_network(net, X, y, n, in, 0.01f, 2000);
+
+    // Test predictions
+    printf("\nTest predictions:\n");
+    float test_x[] = {-1.5f, 0.0f, 1.5f};
+    for (int i = 0; i &lt; 3; i++) {
+        float pred = net_forward(net, &test_x[i])[0];
+        printf("  sin(%.1f) = %.4f (pred=%.4f)\n",
+               test_x[i], sinf(test_x[i]), pred);
+    }
+
+    net_free(net);
+    return 0;
+}</code></pre>
+
+        <div class="callout success">
+          <strong>✓ What we just built</strong>
+          A fully working neural network that learns to approximate sin(x) — forward pass, backward pass, weight updates, and training loop — in under 200 lines of C.
+        </div>
+
+        <h2>Numerical Gradient Check</h2>
+        <p>Always verify your gradients with numerical differentiation — this is how you catch bugs:</p>
+        <pre><code class="language-c">// Numerical gradient for one weight
+// f(w+ε) - f(w-ε) / 2ε
+float numerical_grad(Network *net, float *X, float *y, int n,
+                     int in, float *weight, float eps) {
+    *weight += eps;
+    float loss1 = net_mse(net, X, y, n, in);
+    *weight -= 2*eps;
+    float loss2 = net_mse(net, X, y, n, in);
+    *weight += eps;  // restore
+    return (loss1 - loss2) / (2.0f * eps);
+}
+
+// If |numerical_grad - backprop_grad| &lt; 1e-5, your backprop is correct!</code></pre>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>Backprop = chain rule applied layer by layer, from output back to input</li>
+          <li>Each layer computes: <code>δ_z = δ_in ⊙ act'(z)</code>, then accumulates <code>dW</code> and <code>db</code></li>
+          <li>Pass <code>δ_out = Wᵀ δ_z</code> backward to the previous layer</li>
+          <li>After accumulating over a batch, call <code>net_update</code> to step weights</li>
+          <li>Verify with numerical gradient check before trusting your implementation</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="06-neural-networks.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="07">Mark Complete</button>
+        <a href="08-projects.html" class="btn btn-primary">Next: Projects →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
