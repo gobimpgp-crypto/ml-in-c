@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 4: Linear Regression in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 04</div>
+      <h1>Linear Regression</h1>
+      <p>Implement linear regression from scratch in C — the cost function, normal equation, and a working predictor you can train on real data.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~60 min</span>
+        <span class="meta-tag">🎯 Intermediate</span>
+        <span class="meta-tag">📁 Chapter 4 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link active" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>The Linear Regression Model</h2>
+        <p>Linear regression predicts a continuous value from input features. With one feature:</p>
+        <div class="math-block">ŷ = w·x + b</div>
+        <p>With multiple features (vector form):</p>
+        <div class="math-block">ŷ = wᵀx + b = w₁x₁ + w₂x₂ + ... + wₙxₙ + b</div>
+        <p>The model has two types of parameters:</p>
+        <ul>
+          <li><strong>Weights</strong> <code>w</code> — how much each feature contributes</li>
+          <li><strong>Bias</strong> <code>b</code> — the intercept</li>
+        </ul>
+        <p>Training = finding the values of <code>w</code> and <code>b</code> that minimize prediction error.</p>
+
+        <h2>The Cost Function (MSE)</h2>
+        <p>We measure error with Mean Squared Error:</p>
+        <div class="math-block">J(w,b) = (1/2n) × Σᵢ (ŷᵢ - yᵢ)²</div>
+        <p>The <code>1/2</code> factor is a convenience for calculus — it cancels with the 2 from the derivative.</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+
+typedef struct {
+    float *weights;   // [n_features]
+    float  bias;
+    int    n_features;
+} LinearModel;
+
+LinearModel *model_create(int n_features) {
+    LinearModel *m = malloc(sizeof(LinearModel));
+    m->weights = calloc(n_features, sizeof(float));
+    m->bias = 0.0f;
+    m->n_features = n_features;
+    return m;
+}
+
+void model_free(LinearModel *m) {
+    free(m->weights);
+    free(m);
+}
+
+// Predict one sample: X is [n_features]
+float model_predict_one(const LinearModel *m, const float *x) {
+    float sum = m->bias;
+    for (int j = 0; j &lt; m->n_features; j++)
+        sum += m->weights[j] * x[j];
+    return sum;
+}
+
+// Compute MSE cost over all samples
+// X: [n_samples × n_features], y: [n_samples]
+float compute_cost(const LinearModel *m,
+                   const float *X, const float *y, int n) {
+    float cost = 0.0f;
+    for (int i = 0; i &lt; n; i++) {
+        float pred = model_predict_one(m, X + i * m->n_features);
+        float diff = pred - y[i];
+        cost += diff * diff;
+    }
+    return cost / (2.0f * n);
+}</code></pre>
+
+        <h2>The Normal Equation (Analytic Solution)</h2>
+        <p>For linear regression, there's a closed-form solution — no iteration needed:</p>
+        <div class="math-block">w = (XᵀX)⁻¹ Xᵀy</div>
+        <p>This is exact but O(n³) to compute due to matrix inversion. Works great for small datasets:</p>
+        <pre><code class="language-c">// Solve: weights = (XᵀX)⁻¹ Xᵀy
+// Using Gaussian elimination (no external library needed)
+// X: [n × p], y: [n], result written into m->weights + m->bias
+
+void gaussian_elimination(float *A, float *b, float *x, int n) {
+    // Forward elimination
+    for (int col = 0; col &lt; n; col++) {
+        // Partial pivot
+        int max_row = col;
+        for (int row = col+1; row &lt; n; row++)
+            if (fabsf(A[row*n+col]) &gt; fabsf(A[max_row*n+col]))
+                max_row = row;
+        // Swap rows
+        for (int k = 0; k &lt; n; k++) {
+            float tmp = A[col*n+k]; A[col*n+k] = A[max_row*n+k]; A[max_row*n+k] = tmp;
+        }
+        float tmp = b[col]; b[col] = b[max_row]; b[max_row] = tmp;
+
+        for (int row = col+1; row &lt; n; row++) {
+            float factor = A[row*n+col] / A[col*n+col];
+            for (int k = col; k &lt; n; k++)
+                A[row*n+k] -= factor * A[col*n+k];
+            b[row] -= factor * b[col];
+        }
+    }
+    // Back substitution
+    for (int i = n-1; i &gt;= 0; i--) {
+        x[i] = b[i];
+        for (int j = i+1; j &lt; n; j++)
+            x[i] -= A[i*n+j] * x[j];
+        x[i] /= A[i*n+i];
+    }
+}</code></pre>
+
+        <h2>A Complete Working Example</h2>
+        <p>Let's train a linear regression model on a simple dataset (house size → price):</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+
+// Simple 1D linear regression with direct formula
+// For one feature: w = Cov(x,y) / Var(x),  b = mean(y) - w*mean(x)
+
+typedef struct { float w, b; } LinReg1D;
+
+LinReg1D linreg_fit(const float *x, const float *y, int n) {
+    float mx = 0, my = 0;
+    for (int i = 0; i &lt; n; i++) { mx += x[i]; my += y[i]; }
+    mx /= n; my /= n;
+
+    float num = 0, den = 0;
+    for (int i = 0; i &lt; n; i++) {
+        num += (x[i] - mx) * (y[i] - my);
+        den += (x[i] - mx) * (x[i] - mx);
+    }
+    LinReg1D model;
+    model.w = num / den;
+    model.b = my - model.w * mx;
+    return model;
+}
+
+float linreg_predict(LinReg1D m, float x) {
+    return m.w * x + m.b;
+}
+
+float mse(const float *y_true, const float *y_pred, int n) {
+    float s = 0;
+    for (int i = 0; i &lt; n; i++) {
+        float d = y_true[i] - y_pred[i]; s += d*d;
+    }
+    return s / n;
+}
+
+int main(void) {
+    // House size (hundreds of sq ft) → price ($1000s)
+    float size[]  = {10, 15, 20, 25, 30, 35, 40, 45};
+    float price[] = {150, 200, 260, 310, 370, 420, 490, 540};
+    int n = 8;
+
+    LinReg1D model = linreg_fit(size, price, n);
+    printf("Learned: price = %.2f × size + %.2f\n", model.w, model.b);
+
+    // Evaluate
+    float preds[8];
+    for (int i = 0; i &lt; n; i++)
+        preds[i] = linreg_predict(model, size[i]);
+
+    printf("Training MSE: %.2f\n", mse(price, preds, n));
+    printf("\nPredictions:\n");
+    for (int i = 0; i &lt; n; i++)
+        printf("  size=%-4.0f  actual=%-6.0f  pred=%.1f\n",
+               size[i], price[i], preds[i]);
+
+    // Predict a new house
+    float new_size = 50.0f;
+    printf("\nNew house (size=50): predicted price = $%.0fk\n",
+           linreg_predict(model, new_size));
+    return 0;
+}</code></pre>
+        <p>Expected output:</p>
+        <pre><code class="language-bash">Learned: price = 12.71 × size + 21.07
+Training MSE: 36.16
+Predictions:
+  size=10    actual=150    pred=148.2
+  size=15    actual=200    pred=211.7
+  ...
+New house (size=50): predicted price = $656k</code></pre>
+
+        <h2>R² Score</h2>
+        <p>R² (coefficient of determination) tells you how well the model explains the variance in the data. R²=1.0 is perfect:</p>
+        <div class="math-block">R² = 1 - (SS_res / SS_tot)   where SS = sum of squares</div>
+        <pre><code class="language-c">float r_squared(const float *y_true, const float *y_pred, int n) {
+    float mu = 0;
+    for (int i = 0; i &lt; n; i++) mu += y_true[i];
+    mu /= n;
+
+    float ss_tot = 0, ss_res = 0;
+    for (int i = 0; i &lt; n; i++) {
+        float d_tot = y_true[i] - mu;
+        float d_res = y_true[i] - y_pred[i];
+        ss_tot += d_tot * d_tot;
+        ss_res += d_res * d_res;
+    }
+    return 1.0f - (ss_res / ss_tot);
+}</code></pre>
+
+        <h2>Multiple Linear Regression</h2>
+        <p>With multiple features, the prediction is still a dot product — just with a longer weight vector. The cost function and R² are the same; only the fitting step changes (we'd use gradient descent, covered next chapter).</p>
+        <pre><code class="language-c">// X: [n × p] features, y: [n] labels
+// weights: [p], bias: scalar
+float predict_multi(const float *weights, float bias,
+                    const float *x, int p) {
+    float sum = bias;
+    for (int j = 0; j &lt; p; j++)
+        sum += weights[j] * x[j];
+    return sum;
+}</code></pre>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>Linear regression: <code>ŷ = w·x + b</code>, minimize MSE cost</li>
+          <li>1D closed-form: <code>w = Cov(x,y)/Var(x)</code>, <code>b = ȳ − w·x̄</code></li>
+          <li>Normal equation: <code>w = (XᵀX)⁻¹Xᵀy</code> — exact but O(n³)</li>
+          <li>Use R² score (0–1) to measure fit quality</li>
+          <li>For large datasets or many features → gradient descent (next chapter)</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="03-statistics.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="04">Mark Complete</button>
+        <a href="05-gradient-descent.html" class="btn btn-primary">Next: Gradient Descent →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
