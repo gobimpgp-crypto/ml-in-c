@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 5: Gradient Descent in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 05</div>
+      <h1>Gradient Descent</h1>
+      <p>Implement the core optimization algorithm that trains every ML model — batch GD, stochastic GD, and mini-batch GD, all in C.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~70 min</span>
+        <span class="meta-tag">🎯 Intermediate</span>
+        <span class="meta-tag">📁 Chapter 5 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link active" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>The Core Idea</h2>
+        <p>Imagine you're blindfolded on a hilly landscape and want to reach the valley. At each step, you feel the slope under your feet and take a step downhill. That's gradient descent:</p>
+        <ol>
+          <li>Compute the gradient of the loss with respect to each parameter</li>
+          <li>Step each parameter in the opposite direction of its gradient</li>
+          <li>Repeat until the loss stops decreasing</li>
+        </ol>
+        <div class="math-block">w ← w - α × ∂J/∂w
+b ← b - α × ∂J/∂b</div>
+        <p>where α is the <strong>learning rate</strong> — how big each step is.</p>
+
+        <h2>Gradients for Linear Regression</h2>
+        <p>For MSE loss <code>J = (1/2n) Σ (ŷᵢ - yᵢ)²</code>, the gradients are:</p>
+        <div class="math-block">∂J/∂wⱼ = (1/n) × Σᵢ (ŷᵢ - yᵢ) × xᵢⱼ
+∂J/∂b  = (1/n) × Σᵢ (ŷᵢ - yᵢ)</div>
+
+        <h2>Batch Gradient Descent</h2>
+        <p>Uses all training samples to compute one gradient update:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+#include &lt;string.h&gt;
+
+typedef struct {
+    float *w;    // weights [n_features]
+    float  b;    // bias
+    int    p;    // number of features
+} Model;
+
+// Compute prediction for one sample
+float predict(const Model *m, const float *x) {
+    float s = m->b;
+    for (int j = 0; j &lt; m->p; j++) s += m->w[j] * x[j];
+    return s;
+}
+
+// Compute MSE
+float mse(const Model *m, const float *X, const float *y, int n) {
+    float s = 0;
+    for (int i = 0; i &lt; n; i++) {
+        float d = predict(m, X + i*m->p) - y[i];
+        s += d*d;
+    }
+    return s / n;
+}
+
+// One step of batch gradient descent
+// X: [n × p], y: [n], lr: learning rate
+void gradient_step(Model *m, const float *X, const float *y,
+                   int n, float lr) {
+    float *dw = calloc(m->p, sizeof(float));
+    float  db = 0.0f;
+
+    for (int i = 0; i &lt; n; i++) {
+        const float *xi = X + i * m->p;
+        float error = predict(m, xi) - y[i];   // ŷ - y
+        for (int j = 0; j &lt; m->p; j++)
+            dw[j] += error * xi[j];
+        db += error;
+    }
+    // Average and update
+    for (int j = 0; j &lt; m->p; j++)
+        m->w[j] -= lr * dw[j] / n;
+    m->b -= lr * db / n;
+
+    free(dw);
+}
+
+// Training loop
+void train(Model *m, const float *X, const float *y,
+           int n, float lr, int epochs) {
+    printf("Epoch   MSE\n");
+    for (int e = 0; e &lt; epochs; e++) {
+        gradient_step(m, X, y, n, lr);
+        if (e % 100 == 0 || e == epochs-1) {
+            printf("%5d   %.6f\n", e, mse(m, X, y, n));
+        }
+    }
+}
+
+int main(void) {
+    // y = 3x₁ + 2x₂ + 1 + noise
+    float X[] = {
+        1.0f, 0.5f,
+        2.0f, 1.0f,
+        3.0f, 1.5f,
+        4.0f, 2.0f,
+        5.0f, 2.5f,
+    };
+    float y[] = {5.0f, 9.2f, 13.8f, 18.1f, 22.9f};
+    int n = 5, p = 2;
+
+    Model m = { .w = calloc(p, sizeof(float)), .b = 0.0f, .p = p };
+
+    train(&m, X, y, n, 0.01f, 1000);
+    printf("\nLearned weights: w=[%.3f, %.3f] b=%.3f\n",
+           m.w[0], m.w[1], m.b);
+    // Should be close to w=[3, 2] b=1
+
+    free(m.w);
+    return 0;
+}</code></pre>
+
+        <h2>Stochastic Gradient Descent (SGD)</h2>
+        <p>Instead of all n samples per step, use just <em>one</em> random sample. Noisy but fast:</p>
+        <pre><code class="language-c">#include &lt;stdlib.h&gt;
+
+// One SGD step using a single random sample
+void sgd_step(Model *m, const float *X, const float *y,
+              int n, float lr) {
+    int i = rand() % n;
+    const float *xi = X + i * m->p;
+    float error = predict(m, xi) - y[i];
+
+    for (int j = 0; j &lt; m->p; j++)
+        m->w[j] -= lr * error * xi[j];
+    m->b -= lr * error;
+}
+
+// SGD training loop
+void train_sgd(Model *m, const float *X, const float *y,
+               int n, float lr, int steps) {
+    srand(42);
+    for (int s = 0; s &lt; steps; s++) {
+        sgd_step(m, X, y, n, lr);
+        if (s % 500 == 0)
+            printf("Step %d: MSE = %.6f\n", s, mse(m, X, y, n));
+    }
+}</code></pre>
+
+        <h2>Mini-Batch Gradient Descent</h2>
+        <p>Best of both worlds: use a random batch of size B on each step. Standard in modern deep learning:</p>
+        <pre><code class="language-c">// Fisher-Yates shuffle for random batches
+void shuffle(int *idx, int n) {
+    for (int i = n-1; i &gt; 0; i--) {
+        int j = rand() % (i+1);
+        int tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp;
+    }
+}
+
+void minibatch_step(Model *m, const float *X, const float *y,
+                    int n, float lr, int batch_size,
+                    const int *batch_idx) {
+    float *dw = calloc(m->p, sizeof(float));
+    float  db = 0.0f;
+
+    for (int k = 0; k &lt; batch_size; k++) {
+        int i = batch_idx[k];
+        const float *xi = X + i * m->p;
+        float error = predict(m, xi) - y[i];
+        for (int j = 0; j &lt; m->p; j++)
+            dw[j] += error * xi[j];
+        db += error;
+    }
+    for (int j = 0; j &lt; m->p; j++)
+        m->w[j] -= lr * dw[j] / batch_size;
+    m->b -= lr * db / batch_size;
+    free(dw);
+}
+
+void train_minibatch(Model *m, const float *X, const float *y,
+                     int n, float lr, int epochs, int batch_size) {
+    int *idx = malloc(n * sizeof(int));
+    for (int i = 0; i &lt; n; i++) idx[i] = i;
+
+    for (int e = 0; e &lt; epochs; e++) {
+        shuffle(idx, n);
+        for (int start = 0; start &lt; n; start += batch_size) {
+            int bsz = (start + batch_size &lt; n) ? batch_size : n - start;
+            minibatch_step(m, X, y, n, lr, bsz, idx + start);
+        }
+        if (e % 50 == 0)
+            printf("Epoch %d: MSE = %.6f\n", e, mse(m, X, y, n));
+    }
+    free(idx);
+}</code></pre>
+
+        <h2>Learning Rate — The Critical Hyperparameter</h2>
+        <div class="callout warning">
+          <strong>⚠ Too Large or Too Small?</strong>
+          If lr is too large, gradient descent diverges (loss goes up). If too small, training is painfully slow. A good starting point: try 0.01, 0.001, and 0.0001.
+        </div>
+        <pre><code class="language-c">// Learning rate schedule: decay by factor each epoch
+float lr_schedule(float lr0, float decay, int epoch) {
+    return lr0 / (1.0f + decay * epoch);
+}
+
+// Example: start at 0.1, decay=0.01
+// Epoch   0: lr = 0.100
+// Epoch  10: lr = 0.091
+// Epoch 100: lr = 0.050</code></pre>
+
+        <h2>Convergence Check</h2>
+        <pre><code class="language-c">// Stop when the improvement is below tolerance
+void train_until_convergence(Model *m, const float *X, const float *y,
+                             int n, float lr, float tol, int max_epochs) {
+    float prev_loss = 1e30f;
+    for (int e = 0; e &lt; max_epochs; e++) {
+        gradient_step(m, X, y, n, lr);
+        float loss = mse(m, X, y, n);
+        if (e % 100 == 0)
+            printf("Epoch %d: loss=%.6f\n", e, loss);
+        if (fabsf(prev_loss - loss) &lt; tol) {
+            printf("Converged at epoch %d\n", e);
+            break;
+        }
+        prev_loss = loss;
+    }
+}</code></pre>
+
+        <h2>Comparison: Batch vs SGD vs Mini-Batch</h2>
+        <div class="callout">
+          <strong>Which to use?</strong>
+          <ul style="margin-top:0.5rem">
+            <li><strong>Batch GD</strong> — Smooth convergence, exact gradient. Slow for large datasets.</li>
+            <li><strong>SGD</strong> — Very fast per step. Noisy — can escape local minima. Works for online learning.</li>
+            <li><strong>Mini-Batch</strong> — Best of both. Use batch_size=32 or 64. Standard for deep learning.</li>
+          </ul>
+        </div>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>Gradient descent: <code>w ← w - α × ∂J/∂w</code> repeated until convergence</li>
+          <li>Batch GD: exact gradient, O(n) per step</li>
+          <li>SGD: one random sample per step — noisy but fast</li>
+          <li>Mini-batch: random batch of size B — the deep learning standard</li>
+          <li>Learning rate is critical — too high diverges, too low is slow</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="04-linear-regression.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="05">Mark Complete</button>
+        <a href="06-neural-networks.html" class="btn btn-primary">Next: Neural Networks →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
