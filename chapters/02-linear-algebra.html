@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 2: Linear Algebra in C</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand"><a href="../index.html" class="logo">⚙ ML in C</a></div>
+    <div class="nav-links"><a href="../index.html">Home</a><a href="../index.html#curriculum">Chapters</a></div>
+  </nav>
+
+  <div class="chapter-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="../index.html">Home</a> / Chapter 02</div>
+      <h1>Linear Algebra in C</h1>
+      <p>Implement vectors, matrices, dot products, and matrix multiplication — the building blocks every ML algorithm relies on.</p>
+      <div class="chapter-meta">
+        <span class="meta-tag">⏱ ~60 min</span>
+        <span class="meta-tag">🎯 Beginner–Intermediate</span>
+        <span class="meta-tag">📁 Chapter 2 of 8</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chapter-layout">
+    <aside class="sidebar">
+      <h4>All Chapters</h4>
+      <a href="01-intro.html" class="sidebar-link" data-chapter="01"><span class="sidebar-num">01</span> Introduction</a>
+      <a href="02-linear-algebra.html" class="sidebar-link active" data-chapter="02"><span class="sidebar-num">02</span> Linear Algebra</a>
+      <a href="03-statistics.html" class="sidebar-link" data-chapter="03"><span class="sidebar-num">03</span> Statistics</a>
+      <a href="04-linear-regression.html" class="sidebar-link" data-chapter="04"><span class="sidebar-num">04</span> Linear Regression</a>
+      <a href="05-gradient-descent.html" class="sidebar-link" data-chapter="05"><span class="sidebar-num">05</span> Gradient Descent</a>
+      <a href="06-neural-networks.html" class="sidebar-link" data-chapter="06"><span class="sidebar-num">06</span> Neural Networks</a>
+      <a href="07-backpropagation.html" class="sidebar-link" data-chapter="07"><span class="sidebar-num">07</span> Backpropagation</a>
+      <a href="08-projects.html" class="sidebar-link" data-chapter="08"><span class="sidebar-num">08</span> Projects</a>
+    </aside>
+
+    <main>
+      <article class="article">
+        <h2>Why Linear Algebra?</h2>
+        <p>Almost every ML operation boils down to:</p>
+        <ul>
+          <li><strong>Vectors</strong> — a data point, a weight vector, a gradient</li>
+          <li><strong>Matrix multiplication</strong> — a forward pass through a neural network layer</li>
+          <li><strong>Dot products</strong> — measuring similarity, computing scores</li>
+        </ul>
+        <p>We'll build a minimal linear algebra library in C that we'll reuse in every subsequent chapter.</p>
+
+        <h2>Vectors</h2>
+        <h3>Representation</h3>
+        <p>A vector is just a 1D array. We'll use a struct to keep the size with the data:</p>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+
+typedef struct {
+    float *data;
+    int    size;
+} Vec;
+
+Vec *vec_create(int size) {
+    Vec *v = malloc(sizeof(Vec));
+    v->data = calloc(size, sizeof(float));  // zero-initialized
+    v->size = size;
+    return v;
+}
+
+void vec_free(Vec *v) {
+    free(v->data);
+    free(v);
+}
+
+void vec_print(const Vec *v) {
+    printf("[");
+    for (int i = 0; i &lt; v->size; i++)
+        printf(i == v->size-1 ? "%.4f" : "%.4f, ", v->data[i]);
+    printf("]\n");
+}</code></pre>
+
+        <h3>Vector Operations</h3>
+        <pre><code class="language-c">// Element-wise addition: c = a + b
+Vec *vec_add(const Vec *a, const Vec *b) {
+    Vec *c = vec_create(a->size);
+    for (int i = 0; i &lt; a->size; i++)
+        c->data[i] = a->data[i] + b->data[i];
+    return c;
+}
+
+// Scalar multiply: b = alpha * a
+Vec *vec_scale(const Vec *a, float alpha) {
+    Vec *b = vec_create(a->size);
+    for (int i = 0; i &lt; a->size; i++)
+        b->data[i] = a->data[i] * alpha;
+    return b;
+}
+
+// Dot product: scalar = a · b
+float vec_dot(const Vec *a, const Vec *b) {
+    float sum = 0.0f;
+    for (int i = 0; i &lt; a->size; i++)
+        sum += a->data[i] * b->data[i];
+    return sum;
+}
+
+// L2 norm: ||v|| = sqrt(sum of squares)
+float vec_norm(const Vec *v) {
+    return sqrtf(vec_dot(v, v));
+}</code></pre>
+
+        <h3>The Dot Product — Geometric Meaning</h3>
+        <p>The dot product <code>a · b = ||a|| ||b|| cos(θ)</code> measures how "aligned" two vectors are:</p>
+        <ul>
+          <li><code>a · b &gt; 0</code> — vectors point in a similar direction</li>
+          <li><code>a · b = 0</code> — vectors are perpendicular (orthogonal)</li>
+          <li><code>a · b &lt; 0</code> — vectors point in opposite directions</li>
+        </ul>
+        <div class="math-block">a · b = a₀b₀ + a₁b₁ + ... + aₙbₙ</div>
+        <pre><code class="language-c">int main(void) {
+    Vec *a = vec_create(3);
+    Vec *b = vec_create(3);
+
+    float a_vals[] = {1.0f, 2.0f, 3.0f};
+    float b_vals[] = {4.0f, 5.0f, 6.0f};
+    for (int i = 0; i &lt; 3; i++) {
+        a->data[i] = a_vals[i];
+        b->data[i] = b_vals[i];
+    }
+
+    printf("a = "); vec_print(a);
+    printf("b = "); vec_print(b);
+    printf("a · b = %.2f\n", vec_dot(a, b));   // 32.00
+    printf("||a|| = %.4f\n", vec_norm(a));       // 3.7417
+
+    vec_free(a); vec_free(b);
+    return 0;
+}</code></pre>
+
+        <h2>Matrices</h2>
+        <h3>Representation</h3>
+        <p>We store matrices in row-major order — one contiguous array with <code>row * cols + col</code> indexing:</p>
+        <pre><code class="language-c">typedef struct {
+    float *data;
+    int    rows;
+    int    cols;
+} Mat;
+
+Mat *mat_create(int rows, int cols) {
+    Mat *m = malloc(sizeof(Mat));
+    m->data = calloc(rows * cols, sizeof(float));
+    m->rows = rows;
+    m->cols = cols;
+    return m;
+}
+
+// Inline access macro
+#define MAT(m, r, c) ((m)->data[(r) * (m)->cols + (c)])
+
+void mat_free(Mat *m) {
+    free(m->data);
+    free(m);
+}
+
+void mat_print(const Mat *m) {
+    for (int r = 0; r &lt; m->rows; r++) {
+        printf("[ ");
+        for (int c = 0; c &lt; m->cols; c++)
+            printf("%8.4f ", MAT(m, r, c));
+        printf("]\n");
+    }
+}</code></pre>
+
+        <h3>Matrix Multiplication</h3>
+        <p>The heart of every neural network forward pass. For matrices A (m×k) and B (k×n), result C (m×n):</p>
+        <div class="math-block">C[i][j] = Σₖ A[i][k] × B[k][j]</div>
+        <pre><code class="language-c">// C = A × B  (A is m×k, B is k×n, C is m×n)
+Mat *mat_mul(const Mat *A, const Mat *B) {
+    // A->cols must equal B->rows
+    Mat *C = mat_create(A->rows, B->cols);
+
+    for (int i = 0; i &lt; A->rows; i++) {
+        for (int j = 0; j &lt; B->cols; j++) {
+            float sum = 0.0f;
+            for (int k = 0; k &lt; A->cols; k++)
+                sum += MAT(A, i, k) * MAT(B, k, j);
+            MAT(C, i, j) = sum;
+        }
+    }
+    return C;
+}</code></pre>
+        <div class="callout warning">
+          <strong>⚠ O(n³) Complexity</strong>
+          Naive matrix multiplication is O(n³). For large matrices, real engines use BLAS routines (dgemm/sgemm). For learning, naive is perfect.
+        </div>
+
+        <h3>Matrix Transpose</h3>
+        <p>Transposing swaps rows and columns. Used constantly in backpropagation:</p>
+        <pre><code class="language-c">// Aᵀ[j][i] = A[i][j]
+Mat *mat_transpose(const Mat *A) {
+    Mat *T = mat_create(A->cols, A->rows);
+    for (int i = 0; i &lt; A->rows; i++)
+        for (int j = 0; j &lt; A->cols; j++)
+            MAT(T, j, i) = MAT(A, i, j);
+    return T;
+}
+
+// Matrix-vector multiply: y = A × x
+Vec *mat_vec_mul(const Mat *A, const Vec *x) {
+    Vec *y = vec_create(A->rows);
+    for (int i = 0; i &lt; A->rows; i++) {
+        float sum = 0.0f;
+        for (int j = 0; j &lt; A->cols; j++)
+            sum += MAT(A, i, j) * x->data[j];
+        y->data[i] = sum;
+    }
+    return y;
+}</code></pre>
+
+        <h2>Putting It Together: A Complete Example</h2>
+        <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;math.h&gt;
+
+// ... (include all the structs and functions above)
+
+int main(void) {
+    // Create a 2×3 matrix A
+    Mat *A = mat_create(2, 3);
+    MAT(A,0,0)=1; MAT(A,0,1)=2; MAT(A,0,2)=3;
+    MAT(A,1,0)=4; MAT(A,1,1)=5; MAT(A,1,2)=6;
+
+    // Create a 3×2 matrix B
+    Mat *B = mat_create(3, 2);
+    MAT(B,0,0)=7;  MAT(B,0,1)=8;
+    MAT(B,1,0)=9;  MAT(B,1,1)=10;
+    MAT(B,2,0)=11; MAT(B,2,1)=12;
+
+    printf("A =\n"); mat_print(A);
+    printf("B =\n"); mat_print(B);
+
+    Mat *C = mat_mul(A, B);
+    printf("A × B =\n"); mat_print(C);
+    // [ 58.00  64.00 ]
+    // [139.00 154.00 ]
+
+    mat_free(A); mat_free(B); mat_free(C);
+    return 0;
+}</code></pre>
+
+        <h2>Element-wise Operations</h2>
+        <p>ML also needs element-wise ops — applying a function to every element:</p>
+        <pre><code class="language-c">// Apply a function to every element in-place
+void mat_apply(Mat *m, float (*fn)(float)) {
+    int total = m->rows * m->cols;
+    for (int i = 0; i &lt; total; i++)
+        m->data[i] = fn(m->data[i]);
+}
+
+// Example: apply ReLU element-wise
+float relu(float x) { return x &gt; 0.0f ? x : 0.0f; }
+
+// In practice:
+// mat_apply(layer_output, relu);</code></pre>
+
+        <h2>Summary</h2>
+        <ul>
+          <li>Vectors = 1D float arrays; matrices = 2D stored in row-major 1D arrays</li>
+          <li>Dot product: <code>Σ aᵢbᵢ</code> — measures alignment</li>
+          <li>Matrix multiply: O(n³) triple loop, result shape is (A.rows × B.cols)</li>
+          <li>Transpose swaps rows/cols — essential for gradient computation</li>
+          <li>Use <code>#define MAT(m,r,c)</code> macros for clean 2D indexing</li>
+        </ul>
+      </article>
+
+      <div class="chapter-nav">
+        <a href="01-intro.html" class="btn btn-ghost">← Previous</a>
+        <button id="markCompleteBtn" class="mark-complete-btn" data-chapter="02">Mark Complete</button>
+        <a href="03-statistics.html" class="btn btn-primary">Next: Statistics →</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
